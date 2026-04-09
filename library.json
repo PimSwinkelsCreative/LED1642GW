@@ -1,0 +1,33 @@
+{
+    "name": "TLC5947",
+    "description": "A TLC5947 library that uses the ESP32 HW SPI to quickly update the driver",
+    "keywords": "LED,TLC5947,SPI,fast",
+    "authors": [
+        {
+            "name": "Pim Swinkels",
+            "url": "https://github.com/PimSwinkelsCreative",
+            "maintainer": true
+        }
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/PimSwinkelsCreative/TLC5947"
+    },
+    "version": "2.1.1",
+    "license": "MIT",
+    "frameworks": "arduino",
+    "platforms": "espressif32",
+    "headers": "TLC5947.h",
+    "dependencies":
+    {
+        "16bitPixels": "https://github.com/PimSwinkelsCreative/16bitPixelTypes#v0.1.1",
+        "SPI": "SPI"
+    },
+    "examples":[
+        {
+            "name": "RGBW_Blink",
+            "base": "examples/RGBW_Blink",
+            "files": "RGBW_Blink.ino"
+        }
+    ]
+}
