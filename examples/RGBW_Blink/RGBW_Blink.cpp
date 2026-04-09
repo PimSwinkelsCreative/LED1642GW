@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include <SPI.h>
-#include <TLC5947.h>
+#include <STP16CPC26.h>
 
 // pinout:
 #define LATCH_PIN 15
@@ -16,7 +16,7 @@ RGBWColor16 leds[N_LEDS];
 
 // create the TLC5947 object:
 // The led array needs to be initialized prior to this object creation
-TLC5947 ledDriver(leds, N_LEDS, CLK_PIN, DATA_PIN, LATCH_PIN, BLANK_PIN);
+STP16CPC26 ledDriver(leds, N_LEDS, CLK_PIN, DATA_PIN, LATCH_PIN, BLANK_PIN);
 
 // timing:
 uint16_t delayTime = 500;
