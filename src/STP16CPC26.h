@@ -2,8 +2,9 @@
 #include <16bitPixelTypes.h>
 #include <Arduino.h>
 
-#define BYTESPERDRIVER 32
+
 #define LEDDOTSPERDRIVER 16
+#define BYTESPERDRIVER (2*LEDDOTSPERDRIVER)
 
 #define DEFAULT_SPI_CLK 10000000  // 10MHz
 

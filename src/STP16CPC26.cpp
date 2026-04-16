@@ -74,28 +74,16 @@ void STP16CPC26::update()
         uint8_t ledData[BYTESPERDRIVER];
         memset(ledData, 0, sizeof(ledData));
 
-        uint16_t ledStartIndex = driverNr * BYTESPERDRIVER;
+        uint16_t ledStartIndex = driverNr * LEDDOTSPERDRIVER;
         for (int i = 0; i < LEDDOTSPERDRIVER; i++) {
             if (i + ledStartIndex >= nLedDots)
                 break;
 
-            // // copy the led values to the correct bits in the ledData Array
-
-
-            // if (i % 2 == 0) {
-            //     ledData[BYTESPERDRIVER - i * 12 / 8 - 1] = leds[i + ledStartIndex] & 0xFF; // fill with the 8 LSB
-            //     ledData[BYTESPERDRIVER - i * 12 / 8 - 2] += (leds[i + ledStartIndex] & 0xF00) >> 8; // add the 4 MSB to the bytes LSB
-            // } else {
-            //     ledData[BYTESPERDRIVER - i * 12 / 8 - 1] += (leds[i + ledStartIndex] & 0xF)
-            //         << 4; // add the 4 LSB to the bytes MSB
-            //     ledData[BYTESPERDRIVER - i * 12 / 8 - 2] = (leds[i + ledStartIndex] & 0xFF0) >> 4; // fill with the 8 MSB
-            // }
-
-            ledData[BYTESPERDRIVER-i-1] = leds[i+ledStartIndex]&0xFF; // fill with the 8 LSB
-            ledData[BYTESPERDRIVER-i-2]= (leds[i+ledStartIndex]&0xFF00)>>8;// add the 8 MSB to the bytes LSB
+            ledData[BYTESPERDRIVER - 2 * i - 1] = leds[i + ledStartIndex] & 0xFF;
+            ledData[BYTESPERDRIVER - 2 * i - 2] = (leds[i + ledStartIndex] & 0xFF00) >> 8;
         }
 
-        //write the data for one LED driver
+        // write the data for one LED driver
         ledSPI->beginTransaction(SPISettings(clkFrequency, MSBFIRST, SPI_MODE0));
         ledSPI->transferBytes(ledData, NULL, BYTESPERDRIVER);
         ledSPI->endTransaction();
@@ -103,12 +91,8 @@ void STP16CPC26::update()
 
     // // outputs are briefly disabled when latching the values.
     // // This should solve the flickering problem
-    // if (blankPin > 0)
-    //     digitalWrite(blankPin, HIGH);
     digitalWrite(latchPin, HIGH);
     digitalWrite(latchPin, LOW);
-    // if (blankPin > 0)
-    //     digitalWrite(blankPin, LOW);
 }
 
 void STP16CPC26::setLedTo(uint16_t ledIndex, struct RGBWColor16 color)
