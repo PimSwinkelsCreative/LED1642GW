@@ -1,8 +1,8 @@
 {
     "name": "LED1642GW",
     "version": "1.0.0",
-    "description": "A LED1642GW library that uses the ESP32 HW SPI to quickly update the driver",
-    "keywords": "LED,LED1642GW,SPI,fast",
+    "description": "A LED1642GW library for ESP32",
+    "keywords": "LED,LED1642GW",
     "authors": [
         {
             "name": "Pim Swinkels",
