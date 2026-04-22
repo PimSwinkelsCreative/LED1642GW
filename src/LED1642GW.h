@@ -18,10 +18,18 @@ private:
     uint32_t clkFrequency;
     uint8_t nLedDrivers;
 
-    void init();
+    uint32_t clkPinBitmap;
+    uint32_t dataPinBitmap;
+    uint32_t latchPinBitmap;
 
+    void init();
     void setConfigRegister();
     void enableOutputs();
+
+    void pulseClock();
+    void setDataPin(bool value);
+    void setLatchPin();
+    void clearLatchPin();
 
 public:
     // constructors:

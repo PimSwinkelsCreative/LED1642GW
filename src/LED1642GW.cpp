@@ -1,10 +1,8 @@
 #include "LED1642GW.h"
+#include "driver/gpio.h"
 #include "driver/i2s.h"
-
-#include <SPI.h>
-
-// declare the SPI interface for the LEDs
-SPIClass* ledSPI = NULL;
+#include "soc/gpio_reg.h"
+#include "soc/gpio_struct.h"
 
 LED1642GW::LED1642GW(uint16_t* _ledData, uint16_t _nLedDots, uint8_t _clkPin,
     uint8_t _dataPin, uint8_t _latchPin, int8_t _pwmClockPin,
@@ -60,6 +58,10 @@ void LED1642GW::init()
     pinMode(latchPin, OUTPUT);
     digitalWrite(latchPin, LOW);
 
+    clkPinBitmap = 1 << (clkPin % 32);
+    dataPinBitmap = 1 << (dataPin % 32);
+    latchPinBitmap = 1 << (latchPin % 32);
+
     setConfigRegister();
     enableOutputs();
 
@@ -91,6 +93,7 @@ void LED1642GW::setConfigRegister()
             digitalWrite(clkPin, LOW);
         }
     }
+
     digitalWrite(dataPin, LOW);
     digitalWrite(latchPin, LOW);
 }
@@ -108,7 +111,6 @@ void LED1642GW::enableOutputs()
                     digitalWrite(latchPin, LOW);
                 }
             }
-
             digitalWrite(clkPin, HIGH);
             digitalWrite(clkPin, LOW);
         }
@@ -149,27 +151,33 @@ void LED1642GW::update()
 {
     for (int channel = 15; channel >= 0; channel--) {
         for (int driver = nLedDrivers - 1; driver >= 0; driver--) {
-            int nodeIndex = driver * LEDDOTSPERDRIVER + channel;
+            uint16_t nodeIndex = driver * LEDDOTSPERDRIVER + channel;
             for (int i = 15; i >= 0; i--) {
-                digitalWrite(dataPin, (leds[nodeIndex] & 0x01 << i) >> i);
+                // digitalWrite(dataPin, (leds[nodeIndex] & 0x01 << i) >> i);
+                setDataPin((leds[nodeIndex] & 0x01 << i) >> i);
                 if (driver == 0) {
                     if (channel > 0) {
                         if (i == 3) {
-                            digitalWrite(latchPin, HIGH);
+                            // digitalWrite(latchPin, HIGH);
+                            setLatchPin();
                         }
                     } else {
                         if (i == 5) {
-                            digitalWrite(latchPin, HIGH);
+                            // digitalWrite(latchPin, HIGH);
+                            setLatchPin();
                         }
                     }
                 }
-                digitalWrite(clkPin, HIGH);
-                digitalWrite(clkPin, LOW);
+                // digitalWrite(clkPin, HIGH);
+                // digitalWrite(clkPin, LOW);
+                pulseClock();
             }
-            digitalWrite(latchPin, LOW);
+            // digitalWrite(latchPin, LOW);
+            clearLatchPin();
         }
     }
-    digitalWrite(dataPin, LOW);
+    // digitalWrite(dataPin, LOW);
+    setDataPin(false);
 }
 
 void LED1642GW::setLedTo(uint16_t ledIndex, struct RGBWColor16 color)
@@ -246,5 +254,48 @@ void LED1642GW::clearLeds()
 {
     for (int i = 0; i < nLedDots; i++) {
         leds[i] = 0;
+    }
+}
+
+void LED1642GW::pulseClock()
+{
+    if (clkPin < 31) {
+        GPIO.out_w1ts = clkPinBitmap; // set pin
+        GPIO.out_w1tc = clkPinBitmap; // clear pin
+    } else {
+        GPIO.out1_w1ts.val = clkPinBitmap; // set pin
+        GPIO.out1_w1tc.val = clkPinBitmap; // clear pin
+    }
+}
+void LED1642GW::setDataPin(bool value)
+{
+    if (dataPin < 31) {
+        if (value) {
+            GPIO.out_w1ts = dataPinBitmap;
+        } else {
+            GPIO.out_w1tc = dataPinBitmap;
+        }
+    } else {
+        if (value) {
+            GPIO.out1_w1ts.val = dataPinBitmap;
+        } else {
+            GPIO.out1_w1tc.val = dataPinBitmap;
+        }
+    }
+}
+void LED1642GW::setLatchPin()
+{
+    if (latchPin < 31) {
+        GPIO.out_w1ts = latchPinBitmap;
+    } else {
+        GPIO.out1_w1ts.val = latchPinBitmap;
+    }
+}
+void LED1642GW::clearLatchPin()
+{
+    if (latchPin < 31) {
+        GPIO.out_w1tc = latchPinBitmap;
+    } else {
+        GPIO.out1_w1tc.val = latchPinBitmap;
     }
 }
