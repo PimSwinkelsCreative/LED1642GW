@@ -59,6 +59,8 @@ void LED1642GW::init()
     lastSettingsUpdate = 0;
     settingUpdateInterval = 1000;
 
+    brightness = MAXBRIGHTNESS;
+
     setConfigRegister();
     enableOutputs();
 
@@ -71,7 +73,7 @@ void LED1642GW::setConfigRegister()
 {
     // build the config register:
     uint16_t cfg = 0;
-    cfg |= 0x003F; // CFG0..5 = max gain
+    cfg |= brightness; // CFG0..5 = max gain
     cfg |= (1 << 6); // CFG6 = high current range
     cfg |= (1 << 7); // CFG7 = normal mode
     cfg |= (1 << 13); // CFG13 = SDO delay enable
@@ -248,6 +250,12 @@ void LED1642GW::clearLeds()
     for (int i = 0; i < nLedDots; i++) {
         leds[i] = 0;
     }
+}
+
+void LED1642GW::setBrightness(uint8_t _brightness)
+{
+    brightness = constrain(_brightness,0,MAXBRIGHTNESS);
+    setConfigRegister();
 }
 
 void LED1642GW::pulseClock()

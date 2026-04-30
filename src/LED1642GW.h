@@ -5,6 +5,8 @@
 #define LEDDOTSPERDRIVER 16
 #define BYTESPERDRIVER (2 * LEDDOTSPERDRIVER)
 
+#define MAXBRIGHTNESS 0x3F 
+
 class LED1642GW {
 private:
     uint16_t* leds;
@@ -23,9 +25,12 @@ private:
     uint64_t lastSettingsUpdate;
     uint32_t settingUpdateInterval;
 
+    uint8_t brightness;
+
     void init();
     void setConfigRegister();
     void enableOutputs();
+    void startPWMClock();
 
     void pulseClock();
     void setDataPin(bool value);
@@ -40,9 +45,6 @@ public:
         uint8_t _dataPin, uint8_t _latchPin, int8_t _pwmClockPin = -1);
     LED1642GW(uint16_t* _ledData, uint16_t _nLedDots, uint8_t _clkPin,
         uint8_t _dataPin, uint8_t _latchPin, int8_t _pwmClockPin = -1);
-
-    // startup:
-    void startPWMClock();
 
     // setting led:
     void setLedTo(uint16_t ledIndex, struct RGBWColor16 color);
@@ -62,4 +64,6 @@ public:
 
     // function that sets the interval at which the driver config is being sent
     void setConfigUpdateInterval(uint32_t milliseconds);
+
+    void setBrightness(uint8_t _brightness);
 };
