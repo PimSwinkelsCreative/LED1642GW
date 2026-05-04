@@ -1,8 +1,11 @@
 #include "LED1642GW.h"
-#include "driver/gpio.h"
-#include "driver/i2s.h"
-#include "soc/gpio_reg.h"
-#include "soc/gpio_struct.h"
+#include <driver/gpio.h> //used to directly set the I/O registers
+#include <driver/i2s.h> //used fot the 10MHz I2S clock
+
+#include <soc/gpio_reg.h> //used to directly set the I/O registers
+#include <soc/gpio_struct.h> //used to directly set the I/O registers
+
+#define PULSEDURATION 1
 
 LED1642GW::LED1642GW(uint16_t* _ledData, uint16_t _nLedDots, uint8_t _clkPin,
     uint8_t _dataPin, uint8_t _latchPin, int8_t _pwmClockPin)
@@ -42,6 +45,8 @@ LED1642GW::LED1642GW(RGBWColor16* _rgbwData, uint16_t _nRGBWLeds, uint8_t _clkPi
 
 void LED1642GW::init()
 {
+
+    Serial.println("LED1642GW::init() started\n");
     nLedDrivers = nLedDots / LEDDOTSPERDRIVER;
     if (nLedDots % LEDDOTSPERDRIVER > 0) {
         nLedDrivers++;
@@ -50,7 +55,7 @@ void LED1642GW::init()
     pinMode(clkPin, OUTPUT);
     pinMode(dataPin, OUTPUT);
     pinMode(latchPin, OUTPUT);
-    digitalWrite(latchPin, LOW);
+    // digitalWrite(latchPin, LOW);
 
     clkPinBitmap = 1 << (clkPin % 32);
     dataPinBitmap = 1 << (dataPin % 32);
@@ -61,12 +66,65 @@ void LED1642GW::init()
 
     brightness = MAXBRIGHTNESS;
 
-    setConfigRegister();
-    enableOutputs();
+    // setup the RMT interface
+
+    // clk signal
+    // config.gpio_num = gpio_num_t(clkPin);
+    rmt_tx_channel_config_t chan_config_clk = {
+        .gpio_num = GPIO_NUM_36,
+        .clk_src = RMT_CLK_SRC_DEFAULT,
+        .resolution_hz = RMT_CLOCK_HZ,
+        .mem_block_symbols = 48, // CHECK THIS!
+        .trans_queue_depth = 1, // only 1 message at the same time  >> UPDATE IF PWM CLOCK IS RMT BASED AS WELL!
+        .intr_priority = 0
+    };
+    ESP_ERROR_CHECK(rmt_new_tx_channel(&chan_config_clk, &clkRMTChannel));
+    ESP_ERROR_CHECK(rmt_enable(clkRMTChannel));
+
+    // data signal:
+    // config.gpio_num = intToGpio(dataPin);
+    rmt_tx_channel_config_t chan_config_dat = {
+        .gpio_num = GPIO_NUM_37,
+        .clk_src = RMT_CLK_SRC_DEFAULT,
+        .resolution_hz = RMT_CLOCK_HZ,
+        .mem_block_symbols = 48, // CHECK THIS!
+        .trans_queue_depth = 1, // only 1 message at the same time  >> UPDATE IF PWM CLOCK IS RMT BASED AS WELL!
+        .intr_priority = 0
+    };
+    ESP_ERROR_CHECK(rmt_new_tx_channel(&chan_config_dat, &dataRMTChannel));
+    ESP_ERROR_CHECK(rmt_enable(dataRMTChannel));
+
+    // latch signal:
+    // config.gpio_num = intToGpio(latchPin);
+    rmt_tx_channel_config_t chan_config_latch = {
+        .gpio_num = GPIO_NUM_34,
+        .clk_src = RMT_CLK_SRC_DEFAULT,
+        .resolution_hz = RMT_CLOCK_HZ,
+        .mem_block_symbols = 48, // CHECK THIS!
+        .trans_queue_depth = 1, // only 1 message at the same time  >> UPDATE IF PWM CLOCK IS RMT BASED AS WELL!
+        .intr_priority = 0
+    };
+    ESP_ERROR_CHECK(rmt_new_tx_channel(&chan_config_latch, &latchRMTChannel));
+    ESP_ERROR_CHECK(rmt_enable(latchRMTChannel));
+
+    // make sure the channels are synced:
+    rmt_channel_handle_t rmtChannels[] = { clkRMTChannel, dataRMTChannel, latchRMTChannel };
+    rmt_sync_manager_config_t rms_sync_config = { rmtChannels, 3 };
+
+    rmt_new_sync_manager(&rms_sync_config, &ledDriverRmtSyncManager);
+
+    // Create and use a simple encoder
+    rmt_copy_encoder_config_t copy_encoder_config = { };
+    ESP_ERROR_CHECK(rmt_new_copy_encoder(&copy_encoder_config, &copy_encoder));
+
+    // setConfigRegister();
+    // enableOutputs();
 
     if (pwmClockPin >= 0) {
         startPWMClock();
     }
+
+    Serial.println("Reached end of INIT!\n");
 }
 
 void LED1642GW::setConfigRegister()
@@ -92,6 +150,8 @@ void LED1642GW::setConfigRegister()
         clearLatchPin();
     }
     setDataPin(false);
+
+    Serial.println("Config Registers set!\n");
 }
 
 void LED1642GW::enableOutputs()
@@ -110,6 +170,8 @@ void LED1642GW::enableOutputs()
         clearLatchPin();
     }
     setDataPin(false);
+
+    Serial.println("outputs enabled!\n");
 }
 
 void LED1642GW::startPWMClock()
@@ -138,41 +200,114 @@ void LED1642GW::startPWMClock()
 
     i2s_driver_install(I2S_NUM_0, &i2s_config, 0, NULL);
     i2s_set_pin(I2S_NUM_0, &pin_config);
+
+    Serial.println("PWM Clock Started!\n");
 }
 
 void LED1642GW::update()
 {
+    Serial.println("Starting the Update function\n");
+
+    rmt_tx_wait_all_done(clkRMTChannel, portMAX_DELAY);
+    rmt_tx_wait_all_done(dataRMTChannel, portMAX_DELAY);
+    rmt_tx_wait_all_done(latchRMTChannel, portMAX_DELAY);
+
     // periodically re-send the config data to allow for delayed power on of the interconnect boards:
     if (millis() - lastSettingsUpdate > settingUpdateInterval) {
+        // rmt_tx_wait_all_done(clkRMTChannel, portMAX_DELAY); // wait for the RMT to be done
         lastSettingsUpdate = millis();
         setConfigRegister();
         enableOutputs();
     }
 
-    // send the LED data:
+    // create the led data message:
+    // rmt_symbol_word_t clkData[MAX_RMT_MESSAGE_LENGTH];
+    rmt_symbol_word_t* clkData = (rmt_symbol_word_t*)heap_caps_malloc(
+        sizeof(rmt_symbol_word_t) * MAX_RMT_MESSAGE_LENGTH,
+        MALLOC_CAP_DMA);
+    // rmt_symbol_word_t dataData[MAX_RMT_MESSAGE_LENGTH];
+    rmt_symbol_word_t* dataData = (rmt_symbol_word_t*)heap_caps_malloc(
+        sizeof(rmt_symbol_word_t) * MAX_RMT_MESSAGE_LENGTH,
+        MALLOC_CAP_DMA);
+    // rmt_symbol_word_t latchData[MAX_RMT_MESSAGE_LENGTH];
+    rmt_symbol_word_t* latchData = (rmt_symbol_word_t*)heap_caps_malloc(
+        sizeof(rmt_symbol_word_t) * MAX_RMT_MESSAGE_LENGTH,
+        MALLOC_CAP_DMA);
+
+    Serial.println("created the rmt data arrays\n");
+
+    uint32_t messageIndex = 0;
     for (int channel = 15; channel >= 0; channel--) {
         for (int driver = nLedDrivers - 1; driver >= 0; driver--) {
             uint16_t nodeIndex = driver * LEDDOTSPERDRIVER + channel;
             for (int i = 15; i >= 0; i--) {
-                setDataPin((leds[nodeIndex] & 0x01 << i) >> i);
-
+                // setDataPin((leds[nodeIndex] & 0x01 << i) >> i);
+                // dataData[messageIndex] = { { 2, uint8_t((leds[nodeIndex] & 0x01 << i) >> i), 0, 0 } }; // set the whole clock period to the required level
+                dataData[messageIndex].duration0 = PULSEDURATION;
+                dataData[messageIndex].level0 = (leds[nodeIndex] & 0x01 << i) >> i ? 1 : 0;
+                dataData[messageIndex].duration1 = PULSEDURATION;
+                dataData[messageIndex].level1 = (leds[nodeIndex] & 0x01 << i) >> i ? 1 : 0;
                 if (driver == 0) {
                     if (channel > 0) {
-                        if (i == 3) {
-                            setLatchPin();
+                        if (i <= 3) {
+                            // setLatchPin();
+                            // latchData[messageIndex] = { { 2, 1, 0, 0 } };
+                            latchData[messageIndex].duration0 = PULSEDURATION;
+                            latchData[messageIndex].level0 = 1;
+                            latchData[messageIndex].duration1 = PULSEDURATION;
+                            latchData[messageIndex].level1 = 1;
                         }
                     } else {
-                        if (i == 5) {
-                            setLatchPin();
+                        if (i <= 5) {
+                            // setLatchPin();
+                            // latchData[messageIndex] = { { 2, 1, 0, 0 } };
+                            latchData[messageIndex].duration0 = PULSEDURATION;
+                            latchData[messageIndex].level0 = 1;
+                            latchData[messageIndex].duration1 = PULSEDURATION;
+                            latchData[messageIndex].level1 = 1;
                         }
                     }
+                } else {
+                    // latchData[messageIndex] = { { 2, 0, 0, 0 } };
+                    latchData[messageIndex].duration0 = PULSEDURATION;
+                    latchData[messageIndex].level0 = 0;
+                    latchData[messageIndex].duration1 = PULSEDURATION;
+                    latchData[messageIndex].level1 = 0;
                 }
-                pulseClock();
+                // pulseClock();
+                // clkData[messageIndex] = { { 1, 0, 1, 1 } };
+                clkData[messageIndex].duration0 = PULSEDURATION;
+                clkData[messageIndex].level0 = 0;
+                clkData[messageIndex].duration1 = PULSEDURATION;
+                clkData[messageIndex].level1 = 1;
+                messageIndex++;
             }
-            clearLatchPin();
+            // clearLatchPin();
         }
     }
-    setDataPin(false);
+
+    for (int i = 0; i < messageIndex; i++) {
+        if (clkData[i].duration0 == 0 || clkData[i].duration1 == 0 || latchData[i].duration0 == 0 || latchData[i].duration1 == 0 || dataData[i].duration0 == 0 || dataData[i].duration1 == 0) {
+            Serial.println("ERROR: Duration set to 0!");
+        }
+    }
+
+    rmt_transmit_config_t tx_config = {
+        .loop_count = 0, // Set to -1 for endless loop
+    };
+
+    Serial.println("filled the rmt data arrays\n");
+    Serial.println(messageIndex);
+
+    ESP_ERROR_CHECK(rmt_transmit(clkRMTChannel, copy_encoder, clkData, sizeof(rmt_symbol_word_t) * messageIndex, &tx_config));
+    ESP_ERROR_CHECK(rmt_transmit(dataRMTChannel, copy_encoder, dataData, sizeof(rmt_symbol_word_t) * messageIndex, &tx_config));
+    ESP_ERROR_CHECK(rmt_transmit(latchRMTChannel, copy_encoder, latchData, sizeof(rmt_symbol_word_t) * messageIndex, &tx_config));
+    ESP_ERROR_CHECK(rmt_sync_reset(ledDriverRmtSyncManager));
+    // ESP_ERROR_CHECK(rmt_sync_start(ledDriverRmtSyncManager));
+
+    // setDataPin(false);
+
+    Serial.println("sent the rmt data arrays\n");
 }
 
 void LED1642GW::setLedTo(uint16_t ledIndex, struct RGBWColor16 color)
@@ -254,7 +389,7 @@ void LED1642GW::clearLeds()
 
 void LED1642GW::setBrightness(uint8_t _brightness)
 {
-    brightness = constrain(_brightness,0,MAXBRIGHTNESS);
+    brightness = constrain(_brightness, 0, MAXBRIGHTNESS);
     setConfigRegister();
 }
 

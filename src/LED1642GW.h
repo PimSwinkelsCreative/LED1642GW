@@ -1,11 +1,17 @@
 #pragma once
 #include <16bitPixelTypes.h>
 #include <Arduino.h>
+#include <driver/rmt_tx.h> //required fot RMT control
 
 #define LEDDOTSPERDRIVER 16
 #define BYTESPERDRIVER (2 * LEDDOTSPERDRIVER)
 
-#define MAXBRIGHTNESS 0x3F 
+#define MAXBRIGHTNESS 0x3F
+
+#define MAX_DRIVER_AMOUNT 1
+#define MAX_RMT_MESSAGE_LENGTH (MAX_DRIVER_AMOUNT * 8 * BYTESPERDRIVER)
+
+#define RMT_CLOCK_HZ 2000000 // 1MHz
 
 class LED1642GW {
 private:
@@ -26,6 +32,13 @@ private:
     uint32_t settingUpdateInterval;
 
     uint8_t brightness;
+
+    rmt_channel_handle_t clkRMTChannel;
+    rmt_channel_handle_t dataRMTChannel;
+    rmt_channel_handle_t latchRMTChannel;
+
+    rmt_sync_manager_t *ledDriverRmtSyncManager;
+    rmt_encoder_handle_t copy_encoder;
 
     void init();
     void setConfigRegister();
