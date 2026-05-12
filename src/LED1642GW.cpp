@@ -464,17 +464,53 @@ inline __attribute__((always_inline)) void LED1642GW::nextDMABlock(uint8_t*& out
 
 inline __attribute__((always_inline)) void LED1642GW::shiftOut16(uint16_t value, uint16_t latch, uint8_t*& out, uint8_t*& outEnd)
 {
-    // Shift out 16 bits
-    for (int i = 0; i < 16; i++) {
-        *out++ = ((value & 0x8000) ? 0x01 : 0x00) | ((latch & 0x8000) ? 0x02 : 0x00);
-        value <<= 1;
-        latch <<= 1;
 
-        // DMA block full?
-        if (out >= outEnd) {
-            currentIndex = DMA_BLOCK_SIZE;
-            nextDMABlock(out);
-            outEnd = currentBuffer + DMA_BLOCK_SIZE;
+    // ensure enough room for entire word:
+    if ((outEnd - out) < 16) {
+        currentIndex = DMA_BLOCK_SIZE;
+        nextDMABlock(out);
+        outEnd = currentBuffer + DMA_BLOCK_SIZE;
+    }
+
+    // Most of the time, the latch signal is low all the time.
+    // Therefore this part is implemented twice within this function, both with and without the latch signal
+    // The most common options for the latch signals are also rolled out to further improve performance
+    if (!latch) {
+        // Shift out 16 bits without latch
+        for (int i = 0; i < 16; i++) {
+            *out++ = (value & 0x8000) ? 0x01 : 0x00;
+            value <<= 1;
+        }
+    } else if (latch == 0x0F) {
+        // Shift out 16 bits with standard led value latch
+        for (int i = 0; i < 12; i++) {
+            // shiftout first 12 bits where the latch is low
+            *out++ = (value & 0x8000) ? 0x01 : 0x00;
+            value <<= 1;
+        }
+        for (int i = 0; i < 4; i++) {
+            // shiftout last 4 bits where the latch is high
+            *out++ = ((value & 0x8000) ? 0x01 : 0x00) | 0x02;
+            value <<= 1;
+        }
+    } else if (latch == 0x3F) {
+        // Shift out 16 bits with final led value latch
+        for (int i = 0; i < 10; i++) {
+            // shiftout first 10 bits where the latch is low
+            *out++ = (value & 0x8000) ? 0x01 : 0x00;
+            value <<= 1;
+        }
+        for (int i = 0; i < 6; i++) {
+            // shiftout last 6 bits where the latch is high
+            *out++ = ((value & 0x8000) ? 0x01 : 0x00) | 0x02;
+            value <<= 1;
+        }
+    } else {
+        // Shift out 16 bits with non-standard latch
+        for (int i = 0; i < 16; i++) {
+            *out++ = ((value & 0x8000) ? 0x01 : 0x00) | ((latch & 0x8000) ? 0x02 : 0x00);
+            value <<= 1;
+            latch <<= 1;
         }
     }
 }
