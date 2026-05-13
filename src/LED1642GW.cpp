@@ -474,16 +474,6 @@ bool LED1642GW::dmaDoneISR(
     return highTaskWoken == pdTRUE;
 }
 
-inline __attribute__((always_inline)) uint8_t* LED1642GW::getWritePointer()
-{
-    return currentBuffer + currentIndex;
-}
-
-inline __attribute__((always_inline)) uint8_t* LED1642GW::getBufferEnd()
-{
-    return currentBuffer + DMA_BLOCK_SIZE;
-}
-
 inline __attribute__((always_inline)) void LED1642GW::nextDMABlock(uint8_t*& out)
 {
     // submit current full block
@@ -503,7 +493,6 @@ inline __attribute__((always_inline)) void LED1642GW::shiftOut16(uint16_t value,
 
     // ensure enough room for entire word:
     if ((outEnd - out) < 16) {
-        currentIndex = DMA_BLOCK_SIZE;
         nextDMABlock(out);
         outEnd = currentBuffer + DMA_BLOCK_SIZE;
     }
@@ -518,28 +507,28 @@ inline __attribute__((always_inline)) void LED1642GW::shiftOut16(uint16_t value,
 
     // Lower byte depends on latch mode
     switch (latchMode) {
-    case NO_LATCH:
+    case NO_LATCH: // 16 bit value shifted out, once per led per frame
     default:
         *(uint32_t*)(out + 8) = expanded8_noLatch_A[lowByte]; // all latch low
         *(uint32_t*)(out + 12) = expanded8_noLatch_B[lowByte]; // all latch low
         break;
 
-    case LATCH_2:
+    case LATCH_4: // 16 bit led values shifted through, 16 times per frame
+        *(uint32_t*)(out + 8) = expanded8_noLatch_A[lowByte]; // all latch low
+        *(uint32_t*)(out + 12) = expanded8_4Latch_B[lowByte]; // all latch high
+        break;
+
+    case LATCH_2: // enable leds complete, once per config update (default is 1Hz)
         *(uint32_t*)(out + 8) = expanded8_noLatch_A[lowByte]; // all latch low
         *(uint32_t*)(out + 12) = expanded8_2Latch_B[lowByte]; // last 2 latch high
         break;
 
-    case LATCH_4:
-        *(uint32_t*)(out + 8) = expanded8_noLatch_A[lowByte]; // all latch low
-        *(uint32_t*)(out + 12) = expanded8_4Latch_B[lowByte]; // all latch high
-        break;
-
-    case LATCH_6:
+    case LATCH_6: // frame of 16 bit led values complete, once per frame
         *(uint32_t*)(out + 8) = expanded8_2Latch_A[lowByte]; // last 2 latch high
         *(uint32_t*)(out + 12) = expanded8_4Latch_B[lowByte]; // all latch high
         break;
 
-    case LATCH_7:
+    case LATCH_7: // config setting complete, once per config update  (default is 1Hz)
         *(uint32_t*)(out + 8) = expanded8_3Latch_A[lowByte]; // last 3 latch high
         *(uint32_t*)(out + 12) = expanded8_4Latch_B[lowByte]; // all latch high
         break;
