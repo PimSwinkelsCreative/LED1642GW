@@ -75,9 +75,10 @@ void LED1642GW::init()
 
 void LED1642GW::fillLookupTable()
 {
+    // no latch lookup table:
     for (int value = 0; value < 256; value++) {
         for (int bit = 0; bit < 8; bit++) {
-            expanded8[value][bit] = (value & (0x80 >> bit)) ? 0x01 : 0x00;
+            expanded8_noLatch[value][bit] = (value & (0x80 >> bit)) ? 0b01 : 0x00;
         }
     }
 }
@@ -488,16 +489,16 @@ inline __attribute__((always_inline)) void LED1642GW::shiftOut16(uint16_t value,
     uint8_t lowByte = value & 0xFF;
 
     // The high byte never needs a LATCH signal:
-    memcpy(out, expanded8[highByte], 8);
+    memcpy(out, expanded8_noLatch[highByte], 8);
     out += 8;
 
     // shift out the low byte. THis one is determined by whether the latch is active.
     if (!latch) {
         // simply copy the low byte if no latch is required:
-        memcpy(out, expanded8[lowByte], 8);
+        memcpy(out, expanded8_noLatch[lowByte], 8);
         out += 8;
     } else if (latch == 0x0F) {
-        // Shift out 8 bits with standard led value latch
+        // Shift out 4 bits with standard led value latch
         for (int i = 0; i < 4; i++) {
             // shiftout first 4 bits where the latch is low
             *out++ = (lowByte & 0x80) ? 0x01 : 0x00;
@@ -521,7 +522,7 @@ inline __attribute__((always_inline)) void LED1642GW::shiftOut16(uint16_t value,
             lowByte <<= 1;
         }
     } else {
-        // Shift out 16 bits with non-standard latch
+        // Shift out 8 bits with non-standard latch
         for (int i = 0; i < 8; i++) {
             *out++ = ((lowByte & 0x80) ? 0x01 : 0x00) | ((latch & 0x80) ? 0x02 : 0x00);
             lowByte <<= 1;

@@ -21,8 +21,6 @@
 #define DMA_BLOCK_SIZE 4096
 #define DMA_QUEUE_DEPTH 8
 
-
-
 class LED1642GW {
 private:
     uint16_t* leds;
@@ -50,7 +48,7 @@ private:
     esp_lcd_i80_bus_handle_t i80_bus = nullptr;
     esp_lcd_panel_io_handle_t io_handle = nullptr;
     uint16_t latchMasks[16];
-    uint8_t expanded8[256][8];
+    uint8_t expanded8_noLatch[256][8];
 
     void init();
 
