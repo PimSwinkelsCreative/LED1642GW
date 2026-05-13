@@ -59,15 +59,11 @@ private:
     // lookup tables:
     LatchMode latchMasks[16];
     uint32_t expanded8_noLatch_A[256];
+    uint32_t expanded8_2Latch_A[256];
+    uint32_t expanded8_3Latch_A[256];
     uint32_t expanded8_noLatch_B[256];
-    uint32_t expanded8_latch2_A[256];
-    uint32_t expanded8_latch2_B[256];
-    uint32_t expanded8_latch4_A[256];
-    uint32_t expanded8_latch4_B[256];
-    uint32_t expanded8_latch6_A[256];
-    uint32_t expanded8_latch6_B[256];
-    uint32_t expanded8_latch7_A[256];
-    uint32_t expanded8_latch7_B[256];
+    uint32_t expanded8_2Latch_B[256];
+    uint32_t expanded8_4Latch_B[256];
 
     void init();
 

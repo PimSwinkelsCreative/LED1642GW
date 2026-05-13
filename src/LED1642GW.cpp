@@ -75,13 +75,13 @@ void LED1642GW::init()
 
 void LED1642GW::fillLookupTables()
 {
-    //fill the output lookup tables:
+    // fill the output lookup tables:
     for (int value = 0; value < 256; value++) {
 
         // create temporary byte arrays, to be packed into the 32bit pairs later
+        // the latch4 variant is not calculated, since its A and B parts are already present in other variants
         uint8_t bytes_noLatch[8];
         uint8_t bytes_latch2[8];
-        uint8_t bytes_latch4[8];
         uint8_t bytes_latch6[8];
         uint8_t bytes_latch7[8];
 
@@ -96,9 +96,6 @@ void LED1642GW::fillLookupTables()
             // Latch2 -  last 2 bits active
             bytes_latch2[bit] = out | (bit >= 6 ? 0x02 : 0x00);
 
-            // Latch4 - last 4 bits active
-            bytes_latch4[bit] = out | (bit >= 4 ? 0x02 : 0x00);
-
             // Latch6 - last 6 bits active
             bytes_latch6[bit] = out | (bit >= 2 ? 0x02 : 0x00);
 
@@ -107,20 +104,16 @@ void LED1642GW::fillLookupTables()
         }
 
         // Pack into aligned uint32_t pairs
-        memcpy(&expanded8_noLatch_A[value], &bytes_noLatch[0], 4);
-        memcpy(&expanded8_noLatch_B[value], &bytes_noLatch[4], 4);
 
-        memcpy(&expanded8_latch2_A[value], &bytes_latch2[0], 4);
-        memcpy(&expanded8_latch2_B[value], &bytes_latch2[4], 4);
+        // MSB LUTs:
+        memcpy(&expanded8_noLatch_A[value], &bytes_noLatch[0], 4); // pick the MSB from the noLatch
+        memcpy(&expanded8_2Latch_A[value], &bytes_latch6[0], 4); // pick the MSB from the latch6
+        memcpy(&expanded8_3Latch_A[value], &bytes_latch7[0], 4); // pick the MSB from the latch7
 
-        memcpy(&expanded8_latch4_A[value], &bytes_latch4[0], 4);
-        memcpy(&expanded8_latch4_B[value], &bytes_latch4[4], 4);
-
-        memcpy(&expanded8_latch6_A[value], &bytes_latch6[0], 4);
-        memcpy(&expanded8_latch6_B[value], &bytes_latch6[4], 4);
-
-        memcpy(&expanded8_latch7_A[value], &bytes_latch7[0], 4);
-        memcpy(&expanded8_latch7_B[value], &bytes_latch7[4], 4);
+        // LSB LUTs:
+        memcpy(&expanded8_noLatch_B[value], &bytes_noLatch[4], 4); // pick the LSB from the noLatch
+        memcpy(&expanded8_2Latch_B[value], &bytes_latch2[4], 4); // pick the LSB from the latch2
+        memcpy(&expanded8_4Latch_B[value], &bytes_latch6[4], 4); // pick the LSB from the latch6
     }
 
     // Latch Bitmask preparations
@@ -522,28 +515,28 @@ inline __attribute__((always_inline)) void LED1642GW::shiftOut16(uint16_t value,
     switch (latchMode) {
     case NO_LATCH:
     default:
-        *(uint32_t*)(out + 8) = expanded8_noLatch_A[lowByte];
-        *(uint32_t*)(out + 12) = expanded8_noLatch_B[lowByte];
+        *(uint32_t*)(out + 8) = expanded8_noLatch_A[lowByte]; // all latch low
+        *(uint32_t*)(out + 12) = expanded8_noLatch_B[lowByte]; // all latch low
         break;
 
     case LATCH_2:
-        *(uint32_t*)(out + 8) = expanded8_latch2_A[lowByte];
-        *(uint32_t*)(out + 12) = expanded8_latch2_B[lowByte];
+        *(uint32_t*)(out + 8) = expanded8_noLatch_A[lowByte]; // all latch low
+        *(uint32_t*)(out + 12) = expanded8_2Latch_B[lowByte]; // last 2 latch high
         break;
 
     case LATCH_4:
-        *(uint32_t*)(out + 8) = expanded8_latch4_A[lowByte];
-        *(uint32_t*)(out + 12) = expanded8_latch4_B[lowByte];
+        *(uint32_t*)(out + 8) = expanded8_noLatch_A[lowByte]; // all latch low
+        *(uint32_t*)(out + 12) = expanded8_4Latch_B[lowByte]; // all latch high
         break;
 
     case LATCH_6:
-        *(uint32_t*)(out + 8) = expanded8_latch6_A[lowByte];
-        *(uint32_t*)(out + 12) = expanded8_latch6_B[lowByte];
+        *(uint32_t*)(out + 8) = expanded8_2Latch_A[lowByte]; // last 2 latch high
+        *(uint32_t*)(out + 12) = expanded8_4Latch_B[lowByte]; // all latch high
         break;
 
     case LATCH_7:
-        *(uint32_t*)(out + 8) = expanded8_latch7_A[lowByte];
-        *(uint32_t*)(out + 12) = expanded8_latch7_B[lowByte];
+        *(uint32_t*)(out + 8) = expanded8_3Latch_A[lowByte]; // last 3 latch high
+        *(uint32_t*)(out + 12) = expanded8_4Latch_B[lowByte]; // all latch high
         break;
     }
 
