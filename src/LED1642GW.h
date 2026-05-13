@@ -18,8 +18,11 @@
 
 // DMA settings:
 //  Large buffering to avoid CPU stalls
+// currently optimized for max 2000 LEDs. Increase/decrease if number of LEDs differs greatly.
+// setting these block size and/or queue depth too low will not cause errors.
+// It might only slow things down since the CPU will wait for a block to become free
 #define DMA_BLOCK_SIZE 4096
-#define DMA_QUEUE_DEPTH 16
+#define DMA_QUEUE_DEPTH 8
 
 enum LatchMode : uint8_t {
     NO_LATCH,
@@ -59,15 +62,11 @@ private:
     // lookup tables:
     LatchMode latchMasks[16];
     uint32_t expanded8_noLatch_A[256];
+    uint32_t expanded8_2Latch_A[256];
+    uint32_t expanded8_3Latch_A[256];
     uint32_t expanded8_noLatch_B[256];
-    uint32_t expanded8_latch2_A[256];
-    uint32_t expanded8_latch2_B[256];
-    uint32_t expanded8_latch4_A[256];
-    uint32_t expanded8_latch4_B[256];
-    uint32_t expanded8_latch6_A[256];
-    uint32_t expanded8_latch6_B[256];
-    uint32_t expanded8_latch7_A[256];
-    uint32_t expanded8_latch7_B[256];
+    uint32_t expanded8_2Latch_B[256];
+    uint32_t expanded8_4Latch_B[256];
 
     void init();
 
@@ -84,8 +83,6 @@ private:
     void startMessage();
     void endMessage();
 
-    inline __attribute__((always_inline)) uint8_t* getWritePointer();
-    inline __attribute__((always_inline)) uint8_t* getBufferEnd();
     inline __attribute__((always_inline)) void nextDMABlock(uint8_t*& out);
     inline __attribute__((always_inline)) void shiftOut16(uint16_t value, LatchMode latchMode, uint8_t*& out, uint8_t*& outEnd);
 
