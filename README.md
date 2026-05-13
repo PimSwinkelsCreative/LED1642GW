@@ -3,7 +3,7 @@ An Arduino compatible LED1642GW LED driver library for ESP32 that uses direct re
 
 The library uses the LCD DMA interface to feed the output to the drivers with a 20MHz clock speed.
 
-It can currently update 2000 16 bit values in under 2ms. This update takes approx 1500us for the CPU. Although this could be optimized in future, quite some optimizations have been implemented already.
+It can currently update 2000 16 bit values in under 2ms. This update takes approx 700us for the CPU.
 
 The only drawback of using the LCD DMA is that one GPIO needs to be sacrificed to route all the unused signals to. By default pin 1 is used, but this can be any unused gpio that is floating.
 
