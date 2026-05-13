@@ -518,10 +518,10 @@ inline __attribute__((always_inline)) void LED1642GW::shiftOut16(uint16_t value,
     *(uint32_t*)(out + 0) = expanded8_noLatch_A[highByte];
     *(uint32_t*)(out + 4) = expanded8_noLatch_B[highByte];
 
-
     // Lower byte depends on latch mode
     switch (latchMode) {
     case NO_LATCH:
+    default:
         *(uint32_t*)(out + 8) = expanded8_noLatch_A[lowByte];
         *(uint32_t*)(out + 12) = expanded8_noLatch_B[lowByte];
         break;
